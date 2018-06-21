@@ -21,9 +21,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.net.URI;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
@@ -32,6 +30,7 @@ import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
+import retrofit2.gen.*;
 import retrofit2.http.Body;
 import retrofit2.http.DELETE;
 import retrofit2.http.Field;
@@ -69,6 +68,9 @@ final class RequestFactory {
   private final boolean isFormEncoded;
   private final boolean isMultipart;
   private final ParameterHandler<?>[] parameterHandlers;
+  private Map<String, String> fixedFields = new HashMap<>();
+  private Map<String, Class<? extends Generator>> generatedFields = new HashMap<>();
+  private Class<? extends MapGenerator> fieldMapGenerator;
 
   RequestFactory(Builder builder) {
     baseUrl = builder.retrofit.baseUrl;
@@ -80,6 +82,9 @@ final class RequestFactory {
     isFormEncoded = builder.isFormEncoded;
     isMultipart = builder.isMultipart;
     parameterHandlers = builder.parameterHandlers;
+    fixedFields = builder.fixedFields;
+    generatedFields = builder.generatedFields;
+    fieldMapGenerator = builder.fieldMapGenerator;
   }
 
   okhttp3.Request create(@Nullable Object[] args) throws IOException {
@@ -98,8 +103,38 @@ final class RequestFactory {
     for (int p = 0; p < argumentCount; p++) {
       handlers[p].apply(requestBuilder, args[p]);
     }
-
+    addGenerateFields(requestBuilder);
     return requestBuilder.build();
+  }
+
+  private void addGenerateFields(RequestBuilder requestBuilder){
+    Map<String, String> extendFieldMap = new TreeMap<>();
+    extendFieldMap.putAll(fixedFields);
+
+    for(Map.Entry<String, Class<? extends Generator>> entry : generatedFields.entrySet()){
+      try {
+        Generator generator = entry.getValue().newInstance();
+        String generatedArg = generator.generate(extendFieldMap);
+        extendFieldMap.put(entry.getKey(),generatedArg);
+      } catch (InstantiationException e) {
+        e.printStackTrace();
+      } catch (IllegalAccessException e) {
+        e.printStackTrace();
+      }
+    }
+
+    if(this.fieldMapGenerator != null){
+      try{
+        Map<String, String> generatedFieldMap = fieldMapGenerator.newInstance().generate(extendFieldMap);
+        extendFieldMap.putAll(generatedFieldMap);
+      }catch (Exception e){
+        e.printStackTrace();
+      }
+    }
+
+    for(Map.Entry<String, String> entry : extendFieldMap.entrySet()){
+      requestBuilder.addFormField(entry.getKey(),entry.getValue(),false);
+    }
   }
 
   /**
@@ -134,7 +169,10 @@ final class RequestFactory {
     MediaType contentType;
     Set<String> relativeUrlParamNames;
     ParameterHandler<?>[] parameterHandlers;
-
+    //固定参数
+    Map<String, String> fixedFields = new HashMap<>();
+    Map<String, Class<? extends Generator>> generatedFields = new HashMap<>();
+    Class<? extends MapGenerator> fieldMapGenerator;
     Builder(Retrofit retrofit, Method method) {
       this.retrofit = retrofit;
       this.method = method;
@@ -144,6 +182,11 @@ final class RequestFactory {
     }
 
     RequestFactory build() {
+      Annotation[] classAnnotations = method.getDeclaringClass().getDeclaredAnnotations();
+      for (Annotation classAnnotation : classAnnotations) {
+        parseClassAnnotation(classAnnotation);
+      }
+
       for (Annotation annotation : methodAnnotations) {
         parseMethodAnnotation(annotation);
       }
@@ -165,7 +208,8 @@ final class RequestFactory {
 
       int parameterCount = parameterAnnotationsArray.length;
       parameterHandlers = new ParameterHandler<?>[parameterCount];
-      for (int p = 0; p < parameterCount; p++) {
+      int p = 0;
+      for (; p < parameterCount; p++) {
         Type parameterType = parameterTypes[p];
         if (Utils.hasUnresolvableType(parameterType)) {
           throw parameterError(p, "Parameter type must not include a type variable or wildcard: %s",
@@ -194,6 +238,33 @@ final class RequestFactory {
       }
 
       return new RequestFactory(this);
+    }
+
+    private void parseClassAnnotation(Annotation annotation) {
+      if(annotation instanceof FixedField){
+        gotField = true;
+        FixedField fixedField = ((FixedField) annotation);
+        String[] values = fixedField.values();
+        String[] keys = fixedField.keys();
+
+        for (int i = 0; i < keys.length; i++) {
+          fixedFields.put(keys[i], values[i]);
+        }
+      }else if( annotation instanceof GeneratedField){
+        gotField = true;
+        GeneratedField generatedField = (GeneratedField) annotation;
+        String[] keys = generatedField.keys();
+        Class<? extends Generator>[] classes = generatedField.generators();
+        for (int i = 0; i < keys.length; i++) {
+          generatedFields.put(keys[i], classes[i]);
+
+        }
+      }else if(annotation instanceof GeneratedFieldMap){
+        gotField = true;
+        this.fieldMapGenerator = ((GeneratedFieldMap) annotation).value();
+      }else if(annotation instanceof FormUrlEncoded){
+        isFormEncoded = true;
+      }
     }
 
     private void parseMethodAnnotation(Annotation annotation) {
@@ -230,6 +301,8 @@ final class RequestFactory {
           throw methodError("Only one encoding annotation is allowed.");
         }
         isFormEncoded = true;
+      }else {
+        parseClassAnnotation(annotation);
       }
     }
 
