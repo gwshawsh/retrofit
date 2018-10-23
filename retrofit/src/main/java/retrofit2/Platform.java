@@ -23,7 +23,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
 import javax.annotation.Nullable;
-import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 
 class Platform {
   private static final Platform PLATFORM = findPlatform();
@@ -68,7 +67,6 @@ class Platform {
     throw new UnsupportedOperationException();
   }
 
-  @IgnoreJRERequirement // Only classloaded and used on Java 8.
   static class Java8 extends Platform {
     @Override boolean isDefaultMethod(Method method) {
       return method.isDefault();

@@ -25,12 +25,15 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import okhttp3.Headers;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
-import retrofit2.gen.*;
+import retrofit2.gener.*;
 import retrofit2.http.Body;
 import retrofit2.http.DELETE;
 import retrofit2.http.Field;
@@ -71,7 +74,7 @@ final class RequestFactory {
   private Map<String, String> fixedFields = new HashMap<>();
   private Map<String, Class<? extends Generator>> generatedFields = new HashMap<>();
   private Class<? extends MapGenerator> fieldMapGenerator;
-
+  Class<? extends Wrapper> converter;
   RequestFactory(Builder builder) {
     baseUrl = builder.retrofit.baseUrl;
     httpMethod = builder.httpMethod;
@@ -85,11 +88,12 @@ final class RequestFactory {
     fixedFields = builder.fixedFields;
     generatedFields = builder.generatedFields;
     fieldMapGenerator = builder.fieldMapGenerator;
+    converter = builder.converter;
   }
 
   okhttp3.Request create(@Nullable Object[] args) throws IOException {
     RequestBuilder requestBuilder = new RequestBuilder(httpMethod, baseUrl, relativeUrl, headers,
-        contentType, hasBody, isFormEncoded, isMultipart);
+        contentType, hasBody, isFormEncoded, isMultipart,converter!=null);
 
     @SuppressWarnings("unchecked") // It is an error to invoke a method with the wrong arg types.
     ParameterHandler<Object>[] handlers = (ParameterHandler<Object>[]) parameterHandlers;
@@ -99,11 +103,18 @@ final class RequestFactory {
       throw new IllegalArgumentException("Argument count (" + argumentCount
           + ") doesn't match expected count (" + handlers.length + ")");
     }
-
     for (int p = 0; p < argumentCount; p++) {
       handlers[p].apply(requestBuilder, args[p]);
     }
     addGenerateFields(requestBuilder);
+    if(converter!=null){
+      try {
+        Map<String,String> map = converter.newInstance().map(requestBuilder.getFormFieldCache());
+        requestBuilder.setFormFieldCache(map);
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    }
     return requestBuilder.build();
   }
 
@@ -116,9 +127,7 @@ final class RequestFactory {
         Generator generator = entry.getValue().newInstance();
         String generatedArg = generator.generate(extendFieldMap);
         extendFieldMap.put(entry.getKey(),generatedArg);
-      } catch (InstantiationException e) {
-        e.printStackTrace();
-      } catch (IllegalAccessException e) {
+      } catch (Exception e) {
         e.printStackTrace();
       }
     }
@@ -173,6 +182,7 @@ final class RequestFactory {
     Map<String, String> fixedFields = new HashMap<>();
     Map<String, Class<? extends Generator>> generatedFields = new HashMap<>();
     Class<? extends MapGenerator> fieldMapGenerator;
+    Class<? extends Wrapper>converter;
     Builder(Retrofit retrofit, Method method) {
       this.retrofit = retrofit;
       this.method = method;
@@ -184,7 +194,7 @@ final class RequestFactory {
     RequestFactory build() {
       Annotation[] classAnnotations = method.getDeclaringClass().getDeclaredAnnotations();
       for (Annotation classAnnotation : classAnnotations) {
-        parseClassAnnotation(classAnnotation);
+        parseFieldAnnotation(classAnnotation);
       }
 
       for (Annotation annotation : methodAnnotations) {
@@ -240,7 +250,7 @@ final class RequestFactory {
       return new RequestFactory(this);
     }
 
-    private void parseClassAnnotation(Annotation annotation) {
+    private void parseFieldAnnotation(Annotation annotation) {
       if(annotation instanceof FixedField){
         gotField = true;
         FixedField fixedField = ((FixedField) annotation);
@@ -264,6 +274,9 @@ final class RequestFactory {
         this.fieldMapGenerator = ((GeneratedFieldMap) annotation).value();
       }else if(annotation instanceof FormUrlEncoded){
         isFormEncoded = true;
+      }else if(annotation instanceof Aop){
+        Aop aop = (Aop) annotation;
+        this.converter = aop.value();
       }
     }
 
@@ -302,7 +315,7 @@ final class RequestFactory {
         }
         isFormEncoded = true;
       }else {
-        parseClassAnnotation(annotation);
+        parseFieldAnnotation(annotation);
       }
     }
 

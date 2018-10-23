@@ -1,14 +1,10 @@
 package retrofit2.gener;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.util.Map;
 
-
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.METHOD, ElementType.TYPE})
-public @interface Wrapper {
-    String[] keys();
-    String[] values();
+/**
+ * Created by Administrator on 2018/6/28.
+ */
+public interface Wrapper {
+    Map<String,String> map(Map<String,String> map);
 }

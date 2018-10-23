@@ -16,7 +16,10 @@
 package retrofit2;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import javax.annotation.Nullable;
+
 import okhttp3.FormBody;
 import okhttp3.Headers;
 import okhttp3.HttpUrl;
@@ -45,16 +48,18 @@ final class RequestBuilder {
   private @Nullable MultipartBody.Builder multipartBuilder;
   private @Nullable FormBody.Builder formBuilder;
   private @Nullable RequestBody body;
-
+  private final boolean isAop;
+  private Map<String,String> formFieldCache =new HashMap<>();
   RequestBuilder(String method, HttpUrl baseUrl, @Nullable String relativeUrl,
       @Nullable Headers headers, @Nullable MediaType contentType, boolean hasBody,
-      boolean isFormEncoded, boolean isMultipart) {
+      boolean isFormEncoded, boolean isMultipart,boolean isAop) {
     this.method = method;
     this.baseUrl = baseUrl;
     this.relativeUrl = relativeUrl;
     this.requestBuilder = new Request.Builder();
     this.contentType = contentType;
     this.hasBody = hasBody;
+    this.isAop = isAop;
 
     if (headers != null) {
       requestBuilder.headers(headers);
@@ -165,10 +170,31 @@ final class RequestBuilder {
 
   @SuppressWarnings("ConstantConditions") // Only called when isFormEncoded was true.
   void addFormField(String name, String value, boolean encoded) {
+    if(isAop){
+      formFieldCache.put(name,value);
+      return;
+    }
     if (encoded) {
       formBuilder.addEncoded(name, value);
     } else {
       formBuilder.add(name, value);
+    }
+
+  }
+
+  public Map<String, String> getFormFieldCache() {
+    return formFieldCache;
+  }
+
+  public void setFormFieldCache(Map<String, String> formFieldCache) {
+    this.formFieldCache = formFieldCache;
+  }
+
+  void handleFormFieldCache(){
+    if(isAop && formFieldCache!=null && formBuilder!=null){
+      for (Map.Entry<String, String> entry:formFieldCache.entrySet()){
+        formBuilder.add(entry.getKey(),entry.getValue());
+      }
     }
   }
 
@@ -187,6 +213,7 @@ final class RequestBuilder {
   }
 
   Request build() {
+
     HttpUrl url;
     HttpUrl.Builder urlBuilder = this.urlBuilder;
     if (urlBuilder != null) {
@@ -205,6 +232,7 @@ final class RequestBuilder {
     if (body == null) {
       // Try to pull from one of the builders.
       if (formBuilder != null) {
+        handleFormFieldCache();
         body = formBuilder.build();
       } else if (multipartBuilder != null) {
         body = multipartBuilder.build();
