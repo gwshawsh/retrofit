@@ -65,11 +65,9 @@ final class RequestBuilder {
   private @Nullable FormBody.Builder formBuilder;
   private @Nullable RequestBody body;
   private final boolean isAop;
-  RequestBuilder(String method, HttpUrl baseUrl,
-      @Nullable String relativeUrl, @Nullable Headers headers, @Nullable MediaType contentType,
-      boolean hasBody, boolean isFormEncoded, boolean isMultipart) {
 
   private Map<String,String> formFieldCache =new HashMap<>();
+
   RequestBuilder(String method, HttpUrl baseUrl, @Nullable String relativeUrl,
       @Nullable Headers headers, @Nullable MediaType contentType, boolean hasBody,
       boolean isFormEncoded, boolean isMultipart,boolean isAop) {
@@ -106,7 +104,6 @@ final class RequestBuilder {
       } catch (IllegalArgumentException e) {
         throw new IllegalArgumentException("Malformed content type: " + value, e);
       }
-      contentType = type;
     } else {
       requestBuilder.addHeader(name, value);
     }
@@ -197,10 +194,31 @@ final class RequestBuilder {
 
   @SuppressWarnings("ConstantConditions") // Only called when isFormEncoded was true.
   void addFormField(String name, String value, boolean encoded) {
+    if(isAop){
+      formFieldCache.put(name,value);
+      return;
+    }
     if (encoded) {
       formBuilder.addEncoded(name, value);
     } else {
       formBuilder.add(name, value);
+    }
+
+  }
+
+  public Map<String, String> getFormFieldCache() {
+    return formFieldCache;
+  }
+
+  public void setFormFieldCache(Map<String, String> formFieldCache) {
+    this.formFieldCache = formFieldCache;
+  }
+
+  void handleFormFieldCache(){
+    if(isAop && formFieldCache!=null && formBuilder!=null){
+      for (Map.Entry<String, String> entry:formFieldCache.entrySet()){
+        formBuilder.add(entry.getKey(),entry.getValue());
+      }
     }
   }
 
@@ -237,6 +255,7 @@ final class RequestBuilder {
     if (body == null) {
       // Try to pull from one of the builders.
       if (formBuilder != null) {
+        handleFormFieldCache();
         body = formBuilder.build();
       } else if (multipartBuilder != null) {
         body = multipartBuilder.build();

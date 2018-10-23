@@ -18,6 +18,8 @@ package retrofit2;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
+
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
