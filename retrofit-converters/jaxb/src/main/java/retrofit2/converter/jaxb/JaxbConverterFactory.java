@@ -32,7 +32,7 @@ import retrofit2.Retrofit;
  * ignored.
  */
 public final class JaxbConverterFactory extends Converter.Factory {
-  static final MediaType XML = MediaType.parse("application/xml; charset=utf-8");
+  static final MediaType XML = MediaType.get("application/xml; charset=utf-8");
 
   /** Create an instance using a default {@link JAXBContext} instance for conversion. */
   public static JaxbConverterFactory create() {
@@ -53,7 +53,7 @@ public final class JaxbConverterFactory extends Converter.Factory {
     this.context = context;
   }
 
-  @Override public Converter<?, RequestBody> requestBodyConverter(Type type,
+  @Override public @Nullable Converter<?, RequestBody> requestBodyConverter(Type type,
       Annotation[] parameterAnnotations, Annotation[] methodAnnotations, Retrofit retrofit) {
     if (type instanceof Class && ((Class<?>) type).isAnnotationPresent(XmlRootElement.class)) {
       return new JaxbRequestConverter<>(contextForType((Class<?>) type), (Class<?>) type);
@@ -61,7 +61,7 @@ public final class JaxbConverterFactory extends Converter.Factory {
     return null;
   }
 
-  @Override public Converter<ResponseBody, ?> responseBodyConverter(
+  @Override public @Nullable Converter<ResponseBody, ?> responseBodyConverter(
       Type type, Annotation[] annotations, Retrofit retrofit) {
     if (type instanceof Class && ((Class<?>) type).isAnnotationPresent(XmlRootElement.class)) {
       return new JaxbResponseConverter<>(contextForType((Class<?>) type), (Class<?>) type);

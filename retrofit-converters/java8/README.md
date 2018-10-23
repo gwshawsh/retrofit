@@ -5,6 +5,10 @@ A `Converter` which supports Java 8's `Optional<T>` by delegating to other conve
 and then wrapping it into `Optional`.
 
 
+Deprecated – Included by default in Retrofit
+---------------------------------------
+
+
 Download
 --------
 
@@ -18,7 +22,7 @@ Download [the latest JAR][1] or grab via [Maven][2]:
 ```
 or [Gradle][2]:
 ```groovy
-compile 'com.squareup.retrofit2:converter-java8:latest.version'
+implementation 'com.squareup.retrofit2:converter-java8:latest.version'
 ```
 
 Snapshots of the development version are available in [Sonatype's `snapshots` repository][snap].

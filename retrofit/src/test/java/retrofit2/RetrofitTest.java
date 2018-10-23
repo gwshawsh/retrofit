@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.Nullable;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -271,8 +272,8 @@ public final class RetrofitTest {
     final AtomicBoolean factoryCalled = new AtomicBoolean();
     final AtomicBoolean adapterCalled = new AtomicBoolean();
     class MyCallAdapterFactory extends CallAdapter.Factory {
-      @Override public CallAdapter<?, ?> get(final Type returnType, Annotation[] annotations,
-          Retrofit retrofit) {
+      @Override public @Nullable CallAdapter<?, ?> get(
+          final Type returnType, Annotation[] annotations, Retrofit retrofit) {
         factoryCalled.set(true);
         if (getRawType(returnType) != Call.class) {
           return null;
@@ -302,8 +303,8 @@ public final class RetrofitTest {
 
   @Test public void customCallAdapter() {
     class GreetingCallAdapterFactory extends CallAdapter.Factory {
-      @Override public CallAdapter<Object, String> get(Type returnType, Annotation[] annotations,
-          Retrofit retrofit) {
+      @Override public @Nullable CallAdapter<Object, String> get(
+          Type returnType, Annotation[] annotations, Retrofit retrofit) {
         if (getRawType(returnType) != String.class) {
           return null;
         }
@@ -331,8 +332,8 @@ public final class RetrofitTest {
   @Test public void methodAnnotationsPassedToCallAdapter() {
     final AtomicReference<Annotation[]> annotationsRef = new AtomicReference<>();
     class MyCallAdapterFactory extends CallAdapter.Factory {
-      @Override public CallAdapter<?, ?> get(Type returnType, Annotation[] annotations,
-          Retrofit retrofit) {
+      @Override public @Nullable CallAdapter<?, ?> get(
+          Type returnType, Annotation[] annotations, Retrofit retrofit) {
         annotationsRef.set(annotations);
         return null;
       }
@@ -364,6 +365,7 @@ public final class RetrofitTest {
       assertThat(e.getCause()).hasMessage(""
           + "Could not locate call adapter for java.util.concurrent.Future<java.lang.String>.\n"
           + "  Tried:\n"
+          + "   * retrofit2.CompletableFutureCallAdapterFactory\n"
           + "   * retrofit2.DefaultCallAdapterFactory");
     }
   }
@@ -442,8 +444,8 @@ public final class RetrofitTest {
   @Test public void stringConverterCalledForString() {
     final AtomicBoolean factoryCalled = new AtomicBoolean();
     class MyConverterFactory extends Converter.Factory {
-      @Override public Converter<?, String> stringConverter(Type type, Annotation[] annotations,
-          Retrofit retrofit) {
+      @Override public @Nullable Converter<?, String> stringConverter(
+          Type type, Annotation[] annotations, Retrofit retrofit) {
         factoryCalled.set(true);
         return null;
       }
@@ -461,8 +463,8 @@ public final class RetrofitTest {
   @Test public void stringConverterReturningNullResultsInDefault() {
     final AtomicBoolean factoryCalled = new AtomicBoolean();
     class MyConverterFactory extends Converter.Factory {
-      @Override public Converter<?, String> stringConverter(Type type, Annotation[] annotations,
-          Retrofit retrofit) {
+      @Override public @Nullable Converter<?, String> stringConverter(
+          Type type, Annotation[] annotations, Retrofit retrofit) {
         factoryCalled.set(true);
         return null;
       }
@@ -492,7 +494,8 @@ public final class RetrofitTest {
       assertThat(e.getCause()).hasMessage(""
           + "Could not locate RequestBody converter for class java.lang.String.\n"
           + "  Tried:\n"
-          + "   * retrofit2.BuiltInConverters");
+          + "   * retrofit2.BuiltInConverters\n"
+          + "   * retrofit2.OptionalConverterFactory");
     }
   }
 
@@ -514,7 +517,8 @@ public final class RetrofitTest {
       assertThat(e.getCause()).hasMessage(""
           + "Could not locate ResponseBody converter for class java.lang.String.\n"
           + "  Tried:\n"
-          + "   * retrofit2.BuiltInConverters");
+          + "   * retrofit2.BuiltInConverters\n"
+          + "   * retrofit2.OptionalConverterFactory");
     }
   }
 
@@ -566,7 +570,7 @@ public final class RetrofitTest {
 
     server.enqueue(new MockResponse().setBody("Hi"));
 
-    RequestBody body = RequestBody.create(MediaType.parse("text/plain"), "Hey");
+    RequestBody body = RequestBody.create(MediaType.get("text/plain"), "Hey");
     Response<ResponseBody> response = example.postRequestBody(body).execute();
     assertThat(response.body().string()).isEqualTo("Hi");
 
@@ -693,8 +697,7 @@ public final class RetrofitTest {
     try {
       new Retrofit.Builder().baseUrl("ftp://foo/bar");
       fail();
-    } catch (IllegalArgumentException e) {
-      assertThat(e).hasMessage("Illegal URL: ftp://foo/bar");
+    } catch (IllegalArgumentException ignored) {
     }
   }
 
@@ -705,7 +708,7 @@ public final class RetrofitTest {
     } catch (IllegalArgumentException e) {
       assertThat(e).hasMessage("baseUrl must end in /: http://example.com/api");
     }
-    HttpUrl parsed = HttpUrl.parse("http://example.com/api");
+    HttpUrl parsed = HttpUrl.get("http://example.com/api");
     try {
       new Retrofit.Builder().baseUrl(parsed);
       fail();
@@ -719,11 +722,11 @@ public final class RetrofitTest {
         .baseUrl("http://example.com/")
         .build();
     HttpUrl baseUrl = retrofit.baseUrl();
-    assertThat(baseUrl).isEqualTo(HttpUrl.parse("http://example.com/"));
+    assertThat(baseUrl).isEqualTo(HttpUrl.get("http://example.com/"));
   }
 
   @Test public void baseHttpUrlPropagated() {
-    HttpUrl url = HttpUrl.parse("http://example.com/");
+    HttpUrl url = HttpUrl.get("http://example.com/");
     Retrofit retrofit = new Retrofit.Builder()
         .baseUrl(url)
         .build();
@@ -844,7 +847,7 @@ public final class RetrofitTest {
         .baseUrl("http://example.com/")
         .build();
     List<Converter.Factory> converterFactories = retrofit.converterFactories();
-    assertThat(converterFactories).hasSize(1);
+    assertThat(converterFactories).hasSize(2);
     assertThat(converterFactories.get(0)).isInstanceOf(BuiltInConverters.class);
   }
 
@@ -908,7 +911,8 @@ public final class RetrofitTest {
           + "Could not locate RequestBody converter for class java.lang.String.\n"
           + "  Tried:\n"
           + "   * retrofit2.BuiltInConverters\n"
-          + "   * retrofit2.helpers.NonMatchingConverterFactory");
+          + "   * retrofit2.helpers.NonMatchingConverterFactory\n"
+          + "   * retrofit2.OptionalConverterFactory");
     }
 
     assertThat(nonMatchingFactory.called).isTrue();
@@ -937,7 +941,8 @@ public final class RetrofitTest {
           + "   * retrofit2.BuiltInConverters\n"
           + "   * retrofit2.helpers.NonMatchingConverterFactory\n"
           + "  Tried:\n"
-          + "   * retrofit2.helpers.NonMatchingConverterFactory");
+          + "   * retrofit2.helpers.NonMatchingConverterFactory\n"
+          + "   * retrofit2.OptionalConverterFactory");
     }
 
     assertThat(nonMatchingFactory1.called).isFalse();
@@ -984,7 +989,8 @@ public final class RetrofitTest {
           + "Could not locate ResponseBody converter for class java.lang.String.\n"
           + "  Tried:\n"
           + "   * retrofit2.BuiltInConverters\n"
-          + "   * retrofit2.helpers.NonMatchingConverterFactory");
+          + "   * retrofit2.helpers.NonMatchingConverterFactory\n"
+          + "   * retrofit2.OptionalConverterFactory");
     }
 
     assertThat(nonMatchingFactory.called).isTrue();
@@ -1013,7 +1019,8 @@ public final class RetrofitTest {
           + "   * retrofit2.BuiltInConverters\n"
           + "   * retrofit2.helpers.NonMatchingConverterFactory\n"
           + "  Tried:\n"
-          + "   * retrofit2.helpers.NonMatchingConverterFactory");
+          + "   * retrofit2.helpers.NonMatchingConverterFactory\n"
+          + "   * retrofit2.OptionalConverterFactory");
     }
 
     assertThat(nonMatchingFactory1.called).isFalse();
@@ -1184,6 +1191,7 @@ public final class RetrofitTest {
           + "Could not locate call adapter for class java.lang.String.\n"
           + "  Tried:\n"
           + "   * retrofit2.helpers.NonMatchingCallAdapterFactory\n"
+          + "   * retrofit2.CompletableFutureCallAdapterFactory\n"
           + "   * retrofit2.DefaultCallAdapterFactory");
     }
 
@@ -1216,6 +1224,7 @@ public final class RetrofitTest {
           + "   * retrofit2.helpers.DelegatingCallAdapterFactory\n"
           + "  Tried:\n"
           + "   * retrofit2.helpers.NonMatchingCallAdapterFactory\n"
+          + "   * retrofit2.CompletableFutureCallAdapterFactory\n"
           + "   * retrofit2.DefaultCallAdapterFactory");
     }
 

@@ -59,6 +59,12 @@ public final class CancelDisposeTest {
     assertTrue(calls.get(0).isCanceled());
   }
 
+  @Test public void disposeBeforeEnqueueDoesNotEnqueue() {
+    service.go().test(true);
+    List<Call> calls = client.dispatcher().runningCalls();
+    assertEquals(0, calls.size());
+  }
+
   @Test public void cancelDoesNotDispose() {
     Disposable disposable = service.go().subscribe();
     List<Call> calls = client.dispatcher().runningCalls();
