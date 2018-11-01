@@ -26,8 +26,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import okhttp3.Headers;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
@@ -72,6 +70,7 @@ final class RequestFactory {
   private final Headers headers;
   private final MediaType contentType;
   private final boolean hasBody;
+  boolean gotJson;
   private final boolean isFormEncoded;
   private final boolean isMultipart;
   private final ParameterHandler<?>[] parameterHandlers;
@@ -94,6 +93,7 @@ final class RequestFactory {
     generatedFields = builder.generatedFields;
     fieldMapGenerator = builder.fieldMapGenerator;
     converter = builder.converter;
+    gotJson = builder.gotJson;
   }
 
   okhttp3.Request create(@Nullable Object[] args) throws IOException {
@@ -106,7 +106,7 @@ final class RequestFactory {
               + ") doesn't match expected count (" + handlers.length + ")");
     }
     RequestBuilder requestBuilder = new RequestBuilder(httpMethod, baseUrl, relativeUrl, headers,
-            contentType, hasBody, isFormEncoded, isMultipart,converter!=null);
+            contentType, hasBody, isFormEncoded, isMultipart,converter!=null,gotJson);
 
     List<Object> argumentList = new ArrayList<>(argumentCount);
     for (int p = 0; p < argumentCount; p++) {
@@ -173,6 +173,7 @@ final class RequestFactory {
     final Annotation[][] parameterAnnotationsArray;
     final Type[] parameterTypes;
 
+    boolean gotJson;
     boolean gotField;
     boolean gotPart;
     boolean gotBody;
@@ -289,6 +290,9 @@ final class RequestFactory {
       }else if(annotation instanceof Aop){
         Aop aop = (Aop) annotation;
         this.converter = aop.value();
+      }else if(annotation instanceof retrofit2.gener.JSON){
+        JSON aop = (JSON) annotation;
+        this.gotJson = true;
       }
     }
 
@@ -609,9 +613,9 @@ final class RequestFactory {
 
       } else if (annotation instanceof Field) {
         validateResolvableType(p, type);
-        if (!isFormEncoded) {
+        /*if (!isFormEncoded) {
           throw parameterError(method, p, "@Field parameters can only be used with form encoding.");
-        }
+        }*/
         Field field = (Field) annotation;
         String name = field.value();
         boolean encoded = field.encoded();

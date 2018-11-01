@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import okhttp3.FormBody;
 import okhttp3.Headers;
 import okhttp3.HttpUrl;
@@ -62,15 +64,19 @@ final class RequestBuilder {
 
   private final boolean hasBody;
   private @Nullable MultipartBody.Builder multipartBuilder;
-  private @Nullable FormBody.Builder formBuilder;
+  private @Nullable FormBody.Builder formBuilder = new FormBody.Builder();
   private @Nullable RequestBody body;
   private final boolean isAop;
+  private final boolean isJson;
+
+
 
   private Map<String,String> formFieldCache =new HashMap<>();
+  private Map<String,Object> jsonMap =new HashMap<>();
 
   RequestBuilder(String method, HttpUrl baseUrl, @Nullable String relativeUrl,
       @Nullable Headers headers, @Nullable MediaType contentType, boolean hasBody,
-      boolean isFormEncoded, boolean isMultipart,boolean isAop) {
+      boolean isFormEncoded, boolean isMultipart,boolean isAop,boolean isJson) {
     this.method = method;
     this.baseUrl = baseUrl;
     this.relativeUrl = relativeUrl;
@@ -78,6 +84,7 @@ final class RequestBuilder {
     this.contentType = contentType;
     this.hasBody = hasBody;
     this.isAop = isAop;
+    this.isJson = isJson;
 
     if (headers != null) {
       requestBuilder.headers(headers);
@@ -194,6 +201,10 @@ final class RequestBuilder {
 
   @SuppressWarnings("ConstantConditions") // Only called when isFormEncoded was true.
   void addFormField(String name, String value, boolean encoded) {
+    if(isJson){
+      jsonMap.put(name,value);
+      return;
+    }
     if(isAop){
       formFieldCache.put(name,value);
       return;
@@ -251,6 +262,13 @@ final class RequestBuilder {
       }
     }
 
+    if(isJson){
+      body = RequestBody.create( MediaType.get("application/json"), JSON.toJSONString(jsonMap));
+      return requestBuilder
+              .url(url)
+              .method(method, body);
+    }
+
     RequestBody body = this.body;
     if (body == null) {
       // Try to pull from one of the builders.
@@ -273,6 +291,7 @@ final class RequestBuilder {
         requestBuilder.addHeader("Content-Type", contentType.toString());
       }
     }
+
 
     return requestBuilder
         .url(url)

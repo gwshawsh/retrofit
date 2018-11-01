@@ -16,6 +16,7 @@
 package retrofit2.http;
 
 import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
@@ -31,7 +32,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * <a href="http://tools.ietf.org/html/rfc3986">RFC-3986</a>.
  */
 @Documented
-@Target(METHOD)
+@Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RUNTIME)
 public @interface FormUrlEncoded {
 }
